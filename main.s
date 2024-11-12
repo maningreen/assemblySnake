@@ -14,20 +14,29 @@ numFmt: .asciz "%d\n"
 .equ QKeyCode, 81
 .global main
 
+initPosData:
+  //assume x0 is value one
+  //assume x1 is value two
+  //*MAKE SURE TO RETURN POINTER TO IT*
+  str x30, [sp] //store x30
+  mov x3, x0 //set x3 to be x value
+  mov x0, structSize
+  bl malloc
+  stp x3, x1, [x0] //store the two values
+  ldr x30, [sp]
+  ret
+
 movePosData:
   //in x0 (better be) the address of the posData
   //in x1 there is y and in x2 is y
   mov x3, x1
   mov x4, x2               //save the offsets
-  ldr x1, [x0]              //load the struct from that address
-  add x0, x0, yOffset
-  ldr x2, [x0]
-  sub x0, x0, yOffset
+  ldr x1, [x0, yOffset]!             //load the struct from that address
+  ldr x2, [x0, -yOffset]!
   add x1, x1, x3           //add the values
   add x2, x2, x4           //add the values
-  str x1, [x0]    //store the values
-  add x0, x0, yOffset//offset the pointer to point to the second element
-  str x2, [x0]
+  str x1, [x0, yOffset]!    //store the values
+  str x2, [x0, -yOffset]!
   sub x0, x0, yOffset//undo that offset
   mov x0, 0
   ret//return
@@ -37,8 +46,7 @@ setPositionData:
   //and assume that in x1 is x
   //and x2 is y
   str x1, [x0, yOffset]! //put x in struct address and offset it
-  str x2, [x0] //store it in the y struct address
-  sub x0, x0, yOffset //undo that offset
+  str x2, [x0, -yOffset] //store it in the y struct address
   ret
 
 addPositionDatas:
@@ -104,28 +112,24 @@ getDirFromKeyCode:
   cmp x0, dKeyCode
   beq 3f
   cmp x0, wKeyCode
-  beq 4f //basically just if else array
   mov x0, x1
+  beq 4f //basically just if else array
   mov x1, 2
   mov x2, 0
 1:
   //TODO GET RID OF THIS REDUNDANT COPYING INSTRUCTION
-  mov x0, x1
   mov x1, 0
   mov x2, -1
   b 1f
 2:
-  mov x0, x1
   mov x1, 1
   mov x0, 0
   b 1f
 3:
-  mov x0, x1
   mov x1, 0
   mov x2, 1
   b 1f
 4:
-  mov x0, x1
   mov x1, -1
   mov x2, 0
 1:
@@ -173,18 +177,37 @@ main:
   bl initscr
   mov x22, x0 //set the pointer of the screen to be in x22
 
-  //x22 stdscr
   //x19 maxX, maxY
+  //x20 maxLength, won
+  //x21, box
+  //x22 stdscr
+  //x23, apple
+  //x24, bodyLength
+  //x25, bodyArray
+  //x26, direction
 
-  mov x0, structSize
-  bl malloc
-  mov x19, x0 //allocate a struct put the ptr to it in x19
-  mov x0, x22
-  bl getmaxx
-  str x0, [x19, 8]!
-  mov x0, x22
+  //get maxX, maxY
   bl getmaxy
-  str x0, [x19, -8]!
+  mov x1, x0 //set the y to arg 2
+  bl getmaxx
+  bl initPosData //make a pos data
+  mov x19, x0    //move the ptr to x19
+
+  //maxlength and won
+  ldp x0, x1, [x19] //rember maxX, maxY are in x19
+  sub x0, x0, 1 //maxX - 1
+  sub x1, x1, 1 //maxy - 1
+  mul x0, x0, x1 //(maxx - 1) * (maxy - 1)
+  mov x1, 0 //won to false
+  bl initPosData //initiate pos data
+  mov x20, x0   //put maxLength and won into x20
+
+  //get head starting position
+  ldp x0, x1, [x19] //load maxX, and maxY
+  udiv x0, x0, 2
+  udiv x1, x1, 2 //divide both by two
+  bl initPosData
+  mov x21, x0   //store box in x21
 
 
   //turn of getch delay
@@ -197,27 +220,23 @@ main:
   bl curs_set //hide cursor
   //curs_set(0);
 
-  mov x0, structSize //allocate the size of a structure
-  bl malloc           //alocate it
-  mov x21, x0        //set its address to x21
-  mov x1, 12         //set some basic values
-  mov x2, 13         //set y
-  bl setPositionData //set it for realzies
-  mov x0, x21        //put the data in x21
-  mov x1, bodyChar   //load the character address
-  mov x2, x22        //load the screen
-  bl drawPositionData//draw
+loop:
+  bl getKeyPress
+  cmp x0, QKeyCode
+  beq end //if keyPressed is q end
 
-  bl refresh         //refresh the screen
 
-  bl delayTick
+  bl delayTick //delay .1 seconds
 
-  bl endwin           //uninit screen
 
-  mov x0, x21
-  bl free             //free the struct
-  mov x0, x19
-  bl free             //free maxxy
+end:
+  bl endwin
+  mov x0, x19         //free maxxy
+  bl free
+  mov x0, x20         //free maxlength and won
+  bl free
+  mov x0, x21         //free body
+  bl free
 
 
   ldr x28, [sp],16
