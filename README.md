@@ -6,3 +6,5 @@ you either need a docker image for aarch64 or you need to be on that architectur
 linux only.
 
 you need ncurses installed.
+
+in development
