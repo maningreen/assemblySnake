@@ -1,10 +1,15 @@
 # assemblySnake
 snake in armv8 assembly
 
-you either need a docker image for aarch64 or you need to be on that architecture to run this.
+# current status
+wip, not complete (expect a week or two to be finished)
 
-linux only.
+# current progress
+working on memory management functions, and implementing improvements
 
-you need ncurses installed.
+# requirements to run
+you need to be able to run armv8 assembly. You could be on an armv8 device, or run it on a docker image, your choice
 
-in development
+you also need to have ncurses installed on your system
+
+you need to be on linux
