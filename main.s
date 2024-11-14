@@ -203,15 +203,22 @@ main:
   mov x0, x22//put stdscr as arg 1
   bl getmaxx //get maxx (its in x0)
   bl initPosData //make a pos data from this
-  mov x19, x0    //put that crap in x19
-  bl printPositionData
-  mov x0, x19    //free it
-  bl free
 
-  mov x0, x22
-  bl endwin //end the window
+  mov x19, x0       //recall the max vals are in x19
+  bl getPosDataVals //get the max pos values
+  sub x0, x0, 1     //subtract both values by one because its not inclusive (should probably do that up there)
+  sub x1, x1, 1     //again that ^
+  mul x0, x0, x1    //get the maximum length from the area of the screen
 
-  //x19 maxX, maxY
+  //get the won condition (false)
+  mov x1, 0 //zero for false (cbz my best friend)
+
+  bl initPosData
+  mov x20, x0   //pointer output is in x0 put it in x20 for future reference.
+  bl printPositionData //for debugging
+
+
+  //x19 maxVals
   //x20 maxLength, won
   //x21, box
   //x22 stdscr
@@ -220,6 +227,15 @@ main:
   //x25, bodyArray
   //x26, direction
 end:
+  mov x0, x22
+  bl endwin //end the window
+
+  mov x0, x19 //free maxVals
+  bl free
+
+  mov x0, x20 //free maxLength and won
+  bl free
+
   ldr x28, [sp], 16
   ldp x26, x27, [sp], 16
   ldp x24, x25, [sp], 16
