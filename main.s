@@ -13,20 +13,26 @@ numFmt: .asciz "%d, %d\n"
 .equ QKeyCode, 81
 .global main
 
+getPosDataVals:
+  //x0 is pointer
+  mov x3, x0
+  ldr x0, [x3, yOffset]!
+  ldr x1, [x3, -yOffset]!
+  ret
+
 initPosData:
-  //assume x0 is value one
-  //assume x1 is value two
+  //assume x0 is value x
+  //assume x1 is value y
   //*MAKE SURE TO RETURN POINTER TO IT*
-  str x30, [sp] //store x30
-  mov x3, x0 //set x3 to be x value
+  stp x30, x21, [sp, -16]!
+  stp x0, x1, [sp, -16]!
   mov x0, structSize
   bl malloc
-  mov x4, x0
-  mov x2, x1
-  mov x1, x3
+  mov x21, x0
+  ldp x1, x2, [sp], 16
   bl setPositionData
-  ldr x30, [sp]
-  mov x0, x4
+  mov x0, x21
+  ldp x30, x21, [sp], 16
   ret
 
 movePosData:
@@ -39,17 +45,15 @@ movePosData:
   add x1, x1, x3           //add the values
   add x2, x2, x4           //add the values
   str x1, [x0, yOffset]!    //store the values
-  str x2, [x0], -yOffset
+  str x2, [x0, -yOffset]!
   ret//return
 
 setPositionData:
   //assume in is in x0
   //and assume that in x1 is x
   //and x2 is y
-  str x1, [x0]
-  add x0, x0, 8
-  str x2, [x0]
-  sub x0, x0, 8
+  str x1, [x0, yOffset]!
+  str x2, [x0, -yOffset]!
   ret
 
 addPositionDatas:
@@ -66,13 +70,15 @@ addPositionDatas:
 
 printPositionData:
   //posDataPtr is in x0
-  str x30, [sp]
-  ldr x1, [x0], yOffset
-  ldr x2, [x0], -yOffset
-  adrp x0, numFmt
+  str x30, [sp, -16]! //store this to return
+  bl getPosDataVals //get the data values
+  //move them up to match the number format
+  mov x2, x1        //move y into x2
+  mov x1, x0        //move x into x1
+  adrp x0, numFmt   //load numFmt from memory
   add x0, x0, :lo12:numFmt
-  bl printf
-  ldr x30, [sp]
+  bl printf         //print values
+  ldr x30, [sp], 16
   ret
 
 drawPositionData:
@@ -83,10 +89,7 @@ drawPositionData:
   //store x1 on the stack too because chances are the rest of them are going to get deleted
   //don't worry about x1 anymore
   //move the cursor
-  ldr x3, [x0]
-  add x0, x0, 8
-  ldr x4, [x0]
-  sub x0, x0, 8
+  bl getPosDataVals
   mov x0, x2
   mov x1, x3
   mov x2, x4
@@ -134,22 +137,23 @@ getDirFromKeyCode:
   beq 4f //basically just if else array
   mov x1, 2
   mov x2, 0
+  b 5f
 1:
   mov x1, 0
   mov x2, -1
-  b 1f
+  b 5f
 2:
   mov x1, 1
   mov x0, 0
-  b 1f
+  b 5f
 3:
   mov x1, 0
   mov x2, 1
-  b 1f
+  b 5f
 4:
   mov x1, -1
   mov x2, 0
-1:
+5:
   bl setPositionData
   ldr x30, [sp], 16
   ret
@@ -185,14 +189,14 @@ wrapPosition:
 
 main:
   stp x30, x19, [sp, -16]! //store x30 on the stack so we can return
-  stp x20, x21, [sp, -16]!
-  stp x22, x23, [sp, -16]!
-  stp x24, x25, [sp, -16]!
-  stp x26, x27, [sp, -16]!
-  str x28, [sp, -16]!
 
-  bl initscr
-  mov x22, x0 //set the pointer of the screen to be in x22
+  mov x0, 12
+  mov x1, 13
+  bl initPosData
+  mov x19, x0
+  bl printPositionData
+  mov x0, x19
+  bl free
 
   //x19 maxX, maxY
   //x20 maxLength, won
@@ -202,88 +206,6 @@ main:
   //x24, bodyLength
   //x25, bodyArray
   //x26, direction
-
-  //get maxX, maxY
-  bl getmaxy
-  mov x1, x0 //set the y to arg 2
-  mov x0, x21
-  bl getmaxx
-  bl initPosData //make a pos data
-  mov x19, x0    //move the ptr to x19
-
-  //maxlength and won
-  ldr x0, [x19], yOffset
-  ldr x1, [x19], yOffset
-  sub x0, x0, 1 //maxX - 1
-  sub x1, x1, 1 //maxy - 1
-  mul x0, x0, x1 //(maxx - 1) * (maxy - 1)
-  mov x1, 0 //won to false
-  bl initPosData //initiate pos data
-  mov x20, x0   //put maxLength and won into x20
-
-  //get head starting position
-  ldr x0, [x19], yOffset //load maxX
-  ldr x1, [x19], yOffset //load maxY
-  mov x2, 2
-  udiv x0, x0, x2
-  udiv x1, x1, x2 //divide both by two
-  bl initPosData
-  mov x21, x0   //store box in x21
-
-  mov x1, 12
-  mov x2, 12
-  bl initPosData
-  mov x23, x0
-
-  //turn of getch delay
-  mov x0, x22
-  mov x1, 1
-  bl nodelay
-  //nodelay(stdscr, true);
-
-  mov x0, xzr //arg 1 = 0
-  bl curs_set //hide cursor
-  //curs_set(0);
-
-loop:
-  bl getKeyPress
-  cmp x0, QKeyCode
-  beq end //if keyPressed is q end
-  
-  mov x0, x22
-  bl clear
-
-  mov x0, x23
-  mov x1, headChar
-  mov x2, x22
-  bl drawPositionData
-
-  bl refresh
-
-  bl delayTick //delay .1 seconds
-  b loop
-
-end:
-  bl endwin
-
-  mov x0, x21
-  bl printPositionData
-
-  mov x0, x19         //free maxxy
-  bl free
-  mov x0, x20         //free maxlength and won
-  bl free
-  mov x0, x23
-  bl free
-  mov x0, x21         //free body
-  bl free
-
-
-  ldr x28, [sp],16
-  ldp x26, x27, [sp], 16
-  ldp x24, x25, [sp], 16
-  ldp x22, x23, [sp], 16
-  ldp x20, x21, [sp], 16
-  ldp x30, x19, [sp], 16 //store x30 on the stack so we can return
+  ldp x30, x19, [sp], 16
   mov x0, xzr   //ret 0
   ret
