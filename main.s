@@ -189,14 +189,27 @@ wrapPosition:
 
 main:
   stp x30, x19, [sp, -16]! //store x30 on the stack so we can return
+  stp x20, x21, [sp, -16]! //store the rest on the stack so we can return
+  stp x22, x23, [sp, -16]!
+  stp x24, x25, [sp, -16]!
+  stp x26, x27, [sp, -16]!
+  str x28, [sp, -16]!
 
-  mov x0, 12
-  mov x1, 13
-  bl initPosData
-  mov x19, x0
+  bl initscr  //get stdscr
+  mov x22, x0 //put that baby in x22
+
+  bl getmaxy //get the maximum y value
+  mov x1, x0 //set it in x1
+  mov x0, x22//put stdscr as arg 1
+  bl getmaxx //get maxx (its in x0)
+  bl initPosData //make a pos data from this
+  mov x19, x0    //put that crap in x19
   bl printPositionData
-  mov x0, x19
+  mov x0, x19    //free it
   bl free
+
+  mov x0, x22
+  bl endwin //end the window
 
   //x19 maxX, maxY
   //x20 maxLength, won
@@ -206,6 +219,12 @@ main:
   //x24, bodyLength
   //x25, bodyArray
   //x26, direction
+end:
+  ldr x28, [sp], 16
+  ldp x26, x27, [sp], 16
+  ldp x24, x25, [sp], 16
+  ldp x22, x23, [sp], 16
+  ldp x20, x21, [sp], 16
   ldp x30, x19, [sp], 16
   mov x0, xzr   //ret 0
   ret
