@@ -198,25 +198,39 @@ main:
   bl initscr  //get stdscr
   mov x22, x0 //put that baby in x22
 
+  //recall stdscr is in x0 ^
+  mov x1, 1   //set arg 2 to true
+  bl nodelay
+
+  mov x0, 0
+  bl curs_set //make the cursor invisible
+
+  mov x0, x22//set arg 1 to be stdscr
   bl getmaxy //get the maximum y value
-  mov x1, x0 //set it in x1
+  sub x1, x0, 1 //sub 1 to make it inclusive, put it in x1
   mov x0, x22//put stdscr as arg 1
   bl getmaxx //get maxx (its in x0)
+  sub x0, x0, 1 //sub 1 to make it inclusive put it in x0
   bl initPosData //make a pos data from this
 
   mov x19, x0       //recall the max vals are in x19
   bl getPosDataVals //get the max pos values
-  sub x0, x0, 1     //subtract both values by one because its not inclusive (should probably do that up there)
-  sub x1, x1, 1     //again that ^
   mul x0, x0, x1    //get the maximum length from the area of the screen
-
   //get the won condition (false)
   mov x1, 0 //zero for false (cbz my best friend)
-
-  bl initPosData
+  bl initPosData //initiate the position data
   mov x20, x0   //pointer output is in x0 put it in x20 for future reference.
-  bl printPositionData //for debugging
 
+  //next its time to instantiate our box, this should have two things
+  //an x value and a y value, both at the center of the screen
+  mov x0, x19 //max vals are in here (inclusive (what we want))
+  bl getPosDataVals
+  mov x3, 2      //for some reason  udiv requires registers
+  udiv x0, x0, x3 //divide by two to get center of screen
+  udiv x1, x1, x3 //divide by two to get center of the screen
+  bl initPosData
+  mov x21, x0
+  bl printPositionData
 
   //x19 maxVals
   //x20 maxLength, won
@@ -226,6 +240,16 @@ main:
   //x24, bodyLength
   //x25, bodyArray
   //x26, direction
+gameLoop:
+
+  bl getKeyPress
+
+  cmp x0, QKeyCode //check if they're the same
+  beq end          //if so go to end
+
+  bl delayTick
+
+  b gameLoop       //branch to gameLoop
 end:
   mov x0, x22
   bl endwin //end the window
@@ -234,6 +258,9 @@ end:
   bl free
 
   mov x0, x20 //free maxLength and won
+  bl free
+
+  mov x0, x21 //free the head pos
   bl free
 
   ldr x28, [sp], 16
