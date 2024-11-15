@@ -78,22 +78,13 @@ setPositionDataToOtherData:
   ret                    //and return
   
 
-addPositionDatas:
-  //in x0 is the pointer to a
-  //and in x1 is the pointer to b
-  str x30, [sp, -16]! //store x30 to return
-  str x0, [sp, -16]!  //store x0 to write to
-  mov x3, x1          //put this here for safekeeping
-  add x0, x0, yOffset //offset it to load in the y first
-  ldr x1, [x0], negYOffset//loads the y from x0 and unofsets
-  ldr x0, [x0]        //loads the x from x0
-  ldr x2, [x3], yOffset//load the x from arg 2
-  ldr x3, [x3]        //loads the y from arg 2
-  add x3, x1, x3      //add the y from arg 1 and from arg 2 and puts it in x3
-  add x1, x0, x2      //add the x from arg 1 and from arg 2 and puts it in x1
-  mov x2, x3          //put the y sum into x2 to call set pos data
-  ldr x0, [sp], 16    //load arg 1 from the stack and put it in x0
-  bl setPositionData
+movePosDataByOtherPosData:
+  str x30, [sp, -16]! //store x30 on the stack and increment by -16
+  //assume at x0 is the pos data to move
+  //assume at x1 is the pos data to move by
+  ldr x2, [x1, yOffset]
+  ldr x1, [x1]
+  bl movePosData
   ldr x30, [sp], 16   //load x30 to return
   ret //return
 
