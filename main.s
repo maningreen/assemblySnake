@@ -24,8 +24,7 @@ modulo:
 
 getPosDataVals:
   //x0 is pointer
-  add x0, x0, yOffset
-  ldr x1, [x0], negYOffset
+  ldr x1, [x0, yOffset]
   ldr x0, [x0]
   ret
 
@@ -47,8 +46,8 @@ initPosData:
 movePosData:
   //in x0 (better be) the address of the posData
   //in x1 there is y and in x2 is y
-  ldr x3, [x0], yOffset
-  ldr x4, [x0], negYOffset
+  ldr x3, [x0]
+  ldr x4, [x0, yOffset]
   add x1, x1, x3
   add x2, x2, x4
   str x1, [x0]
@@ -82,8 +81,8 @@ movePosDataByOtherPosData:
   str x30, [sp, -16]! //store x30 on the stack and increment by -16
   //assume at x0 is the pos data to move
   //assume at x1 is the pos data to move by
-  ldr x2, [x1, yOffset]
-  ldr x1, [x1]
+  ldr x2, [x1]
+  ldr x1, [x1, yOffset]
   bl movePosData
   ldr x30, [sp], 16   //load x30 to return
   ret //return
@@ -164,24 +163,24 @@ getDirFromKeyCode:
   cmp x1, sKeyCode
   beq 4f
   //THIS IS NOW IF ITS NONE OF THEM
-  mov x1, 2 //x = 2
-  mov x2, 0 //y = 0
+  mov x1, 0 //x = 2
+  mov x2, 2 //y = 0
   b 5f
 1:
-  mov x1, 0
-  mov x2, -1
-  b 5f
-2:
-  mov x1, 0
-  mov x2, 1
-  b 5f
-3:
   mov x1, -1
   mov x2, 0
   b 5f
-4:
+2:
   mov x1, 1
   mov x2, 0
+  b 5f
+3:
+  mov x1, 0
+  mov x2, -1
+  b 5f
+4:
+  mov x1, 0
+  mov x2, 1
 5:
   bl setPositionData
   ldr x30, [sp], 16
@@ -289,11 +288,24 @@ gameLoop:
   cmp x0, QKeyCode //check if they're the same
   beq end          //if so go to end
 
+  //get direction
+  mov x1, x0
+  mov x0, x27
+  bl getDirFromKeyCode
+  bl getPosDataVals
+  cmp x0, 2
+  beq 1f
+  mov x0, x26
+  mov x1, x27
+  bl setPositionDataToOtherData
+
+1:
+
+
   //change position
   mov x0, x21 //load args
-  mov x1, 1
-  mov x2, 0
-  bl movePosData
+  mov x1, x26
+  bl movePosDataByOtherPosData
 
   mov x0, x21
   mov x1, headChar//set the character the head character
