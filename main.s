@@ -216,6 +216,7 @@ wrapPosition:
   //This will be painful
   //very painful
 
+
 main:
   stp x30, x19, [sp, -16]! //store x30 on the stack so we can return
   stp x20, x21, [sp, -16]! //store the rest on the stack so we can return
@@ -289,34 +290,32 @@ gameLoop:
   beq end          //if so go to end
 
   //get direction
-  mov x1, x0
-  mov x0, x27
-  bl getDirFromKeyCode
-  bl getPosDataVals
-  cmp x0, 2
-  beq 1f
-  mov x0, x26
-  mov x1, x27
-  bl setPositionDataToOtherData
-
+  mov x1, x0  //the inputed key code put in arg 2
+  mov x0, x27 //put reqDir in arg 1
+  bl getDirFromKeyCode //set reqDir to be the coorosponding diretion
+  bl getPosDataVals    //then we check if its null (x is 2)
+  cmp x0, 2            //if it is then we skip setting
+  beq 1f               //here is the branch to 1f
+  mov x0, x26          //otherwise, we are here and thus we set x0 to be the directon
+  mov x1, x27          //x1 to be the reqDir
+  bl setPositionDataToOtherData//and we sest dir to reqDir
+  //that wasn't so hard was it? (it was)
 1:
-
-
-  //change position
+  //change position of box
   mov x0, x21 //load args
   mov x1, x26
   bl movePosDataByOtherPosData
 
-  mov x0, x21
+  mov x0, x21     //set the pos data to draw to be the box
   mov x1, headChar//set the character the head character
   mov x2, x22    //set the screen to draw on to be std screen
   bl drawPositionData//draw the position
 
-  bl refresh
+  bl refresh     //refresh the screen
 
   bl delayTick    //delay the game by .1 seconds
 
-  b gameLoop
+ b gameLoop      //go back to gameLoop
 
 end:
   mov x0, x22
