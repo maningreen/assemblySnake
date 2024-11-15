@@ -15,9 +15,9 @@ numFmt: .asciz "%d, %d\n"
 
 getPosDataVals:
   //x0 is pointer
-  mov x3, x0
-  ldr x0, [x3, yOffset]!
-  ldr x1, [x3, -yOffset]!
+  add x0, x0, yOffset
+  ldr x1, [x0], -yOffset
+  ldr x0, [x0]
   ret
 
 initPosData:
@@ -56,17 +56,40 @@ setPositionData:
   str x2, [x0, -yOffset]!
   ret
 
+setPositionDataToOtherData:
+  //assume in x0 is the pointer to set
+  //assume in x1 is the pointer to read
+  str x30, [sp, -16]! //load x30 to the stack
+  mov x3, x0
+  mov x0, x1
+  bl getPosDataVals
+  mov x2, x1
+  mov x1, x0
+  mov x0, x3
+  bl setPositionData     //then we set the pos data
+  ldr x30, [sp], 16      //load x30 from the stack
+  ret                    //and return
+  
+
 addPositionDatas:
   //in x0 is the pointer to a
   //and in x1 is the pointer to b
   str x30, [sp, -16]!//store x30 on the stack to return
+  add x1, x1, yOffset
   ldr x2, [x1], -yOffset//set x2 to be the x of b (and offset)
-  ldr x3, [x1] //set x3 to be the y of b (and offset)
-  mov x1, x2 //move them down to be arguments
-  mov x2, x3
+  ldr x1, [x1]  //set x3 to be the y of b (and offset)
   bl movePosData //move the postion data
   ldr x30, [sp], 16 //unload from the stack
   ret //return
+
+getPosDataDif:
+  //x0 is pointer 1
+  //x1 is pointer 2
+  ldp x2, x3, [x0] //load both the values from x0
+  ldp x4, x5, [x1] //load both values from x1
+  sub x0, x2, x4   //get the difference of x values put in x0
+  sub x1, x3, x5   //get the difference of y values put in x1
+  ret              //return
 
 printPositionData:
   //posDataPtr is in x0
@@ -86,14 +109,15 @@ drawPositionData:
   // assume character pointer is in x1
   // assume screen is in x2
   stp x30, x1, [sp, -16]! //store x30 to return and offset by 16
+  str x2, [sp, -16]!
   //store x1 on the stack too because chances are the rest of them are going to get deleted
-  //don't worry about x1 anymore
+  //don't worry about x1 anymore or x2
   //move the cursor
-  bl getPosDataVals
-  mov x0, x2
-  mov x1, x3
-  mov x2, x4
-  bl wmove
+  bl getPosDataVals //x1 is stored on stack, overrides the pointer
+  mov x2, x1        //set x2 to be the y
+  mov x1, x0        //set x1 to be the x
+  ldr x0, [sp], 16  //load screen from stack
+  bl wmove          //move the cursor
 
   mov x0, sp
   add x0, x0, 8 //so this gave me a bit of trouble so i'll explain it
@@ -121,37 +145,36 @@ getKeyPress:
   ret //return
 
 getDirFromKeyCode:
-  //assume keycode is in x0
-  //assume address of reqDir is in x1
-  //this isn't hard just really annoying
-  //this might ruin our plans for our memory, naw it'll be fine
-  str x30, [sp, -16]!
-  cmp x0, aKeyCode
+  str x30, [sp, -16]! //store x30 and offset it
+  //assume in x0 is the pointer
+  //assume in x1 is the keycode
+  //time for a fat if else array
+  cmp x1, aKeyCode
   beq 1f
-  cmp x0, sKeyCode
+  cmp x1, dKeyCode
   beq 2f
-  cmp x0, dKeyCode
+  cmp x1, wKeyCode
   beq 3f
-  cmp x0, wKeyCode
-  mov x0, x1
-  beq 4f //basically just if else array
-  mov x1, 2
-  mov x2, 0
+  cmp x1, sKeyCode
+  beq 4f
+  //THIS IS NOW IF ITS NONE OF THEM
+  mov x1, 2 //x = 2
+  mov x2, 0 //y = 0
   b 5f
 1:
   mov x1, 0
   mov x2, -1
   b 5f
 2:
-  mov x1, 1
-  mov x0, 0
-  b 5f
-3:
   mov x1, 0
   mov x2, 1
   b 5f
-4:
+3:
   mov x1, -1
+  mov x2, 0
+  b 5f
+4:
+  mov x1, 1
   mov x2, 0
 5:
   bl setPositionData
@@ -206,20 +229,20 @@ main:
   bl curs_set //make the cursor invisible
 
   mov x0, x22//set arg 1 to be stdscr
-  bl getmaxy //get the maximum y value
+  bl getmaxx //get the maximum y value
   sub x1, x0, 1 //sub 1 to make it inclusive, put it in x1
   mov x0, x22//put stdscr as arg 1
-  bl getmaxx //get maxx (its in x0)
+  bl getmaxy //get maxx (its in x0)
   sub x0, x0, 1 //sub 1 to make it inclusive put it in x0
   bl initPosData //make a pos data from this
+  mov x19, x0    //store max vals in x19
 
-  mov x19, x0       //recall the max vals are in x19
-  bl getPosDataVals //get the max pos values
-  mul x0, x0, x1    //get the maximum length from the area of the screen
-  //get the won condition (false)
-  mov x1, 0 //zero for false (cbz my best friend)
-  bl initPosData //initiate the position data
-  mov x20, x0   //pointer output is in x0 put it in x20 for future reference.
+  //x20 is maxLength and won condition
+  bl getPosDataVals
+  mul x0, x0, x1
+  mov x1, 0
+  bl initPosData
+  mov x20, x0
 
   //next its time to instantiate our box, this should have two things
   //an x value and a y value, both at the center of the screen
@@ -230,7 +253,18 @@ main:
   udiv x1, x1, x3 //divide by two to get center of the screen
   bl initPosData
   mov x21, x0
-  bl printPositionData
+
+  mov x0, 0     //set collumn to 0 for initial direction
+  mov x1, -1    //set row to -1 for initiate direction <--
+  bl initPosData
+  mov x26, x0
+  //set x26 to be our position data
+
+  //reqDir
+  mov x0, 0     //set it to 1 temporarily
+  mov x1, x0    //seti it to 1 (this will get immediatly overwriten)
+  bl initPosData//initiate it
+  mov x27, x0   //set x27 to reqDir
 
   //x19 maxVals
   //x20 maxLength, won
@@ -240,16 +274,46 @@ main:
   //x24, bodyLength
   //x25, bodyArray
   //x26, direction
+  //x27, reqDir
 gameLoop:
 
+  bl clear
   bl getKeyPress
 
   cmp x0, QKeyCode //check if they're the same
   beq end          //if so go to end
 
-  bl delayTick
+  mov x1, x0
+  mov x0, x27
+  bl getDirFromKeyCode //get the direction from the keycode
+  //bl getPosDataVals    //get the values from that direction
+  //cmp x0, 2 //if x0 (X value) is 2 then its null, if it is null we skip
+  //beq 1f    //(TEMPORARY)
+  //TODO add regular snake movement
+  mov x0, x27
+  bl getPosDataVals
+  cmp x0, 2
+  beq 1f
+  mov x1, x27     //set the thing to set direction to to reqDir
+  mov x0, x26     //set arg 0 to be the direction
+  bl setPositionDataToOtherData //set direction to te requested direction
+1: //if its two ignore that ^
+  //change position
+  mov x1, x26
+  mov x0,x21
+  bl addPositionDatas
 
-  b gameLoop       //branch to gameLoop
+  mov x0, x21
+  mov x1, headChar//set the character the head character
+  mov x2, x22    //set the screen to draw on to be std screen
+  bl drawPositionData//draw the position
+
+  bl refresh
+
+  bl delayTick    //delay the game by .1 seconds
+
+  b gameLoop
+
 end:
   mov x0, x22
   bl endwin //end the window
@@ -257,10 +321,16 @@ end:
   mov x0, x19 //free maxVals
   bl free
 
-  mov x0, x20 //free maxLength and won
+  mov x0, x20
   bl free
 
   mov x0, x21 //free the head pos
+  bl free
+
+  mov x0, x26 //free direction
+  bl free
+
+  mov x0, x27 //free reqDir
   bl free
 
   ldr x28, [sp], 16
