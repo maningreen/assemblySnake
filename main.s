@@ -2,6 +2,7 @@
 numFmt: .asciz "%d, %d\n"
 .text
 .equ yOffset, 8
+.equ negYOffset, -8
 .equ structSize, 16
 .equ bodyChar, 91
 .equ headChar, 64
@@ -16,7 +17,7 @@ numFmt: .asciz "%d, %d\n"
 getPosDataVals:
   //x0 is pointer
   add x0, x0, yOffset
-  ldr x1, [x0], -yOffset
+  ldr x1, [x0], negYOffset
   ldr x0, [x0]
   ret
 
@@ -38,22 +39,20 @@ initPosData:
 movePosData:
   //in x0 (better be) the address of the posData
   //in x1 there is y and in x2 is y
-  mov x3, x1
-  mov x4, x2               //save the offsets
-  ldr x1, [x0], yOffset    //load the struct from that address
-  ldr x2, [x0], -yOffset
-  add x1, x1, x3           //add the values
-  add x2, x2, x4           //add the values
-  str x1, [x0, yOffset]!    //store the values
-  str x2, [x0, -yOffset]!
-  ret//return
+  ldr x3, [x0], yOffset
+  ldr x4, [x0], negYOffset
+  add x1, x1, x3
+  add x2, x2, x4
+  str x1, [x0]
+  str x2, [x0, yOffset]
+  ret
 
 setPositionData:
   //assume in is in x0
   //and assume that in x1 is x
   //and x2 is y
   str x1, [x0, yOffset]!
-  str x2, [x0, -yOffset]!
+  str x2, [x0, negYOffset]!
   ret
 
 setPositionDataToOtherData:
@@ -74,12 +73,20 @@ setPositionDataToOtherData:
 addPositionDatas:
   //in x0 is the pointer to a
   //and in x1 is the pointer to b
-  str x30, [sp, -16]!//store x30 on the stack to return
-  add x1, x1, yOffset
-  ldr x2, [x1], -yOffset//set x2 to be the x of b (and offset)
-  ldr x1, [x1]  //set x3 to be the y of b (and offset)
-  bl movePosData //move the postion data
-  ldr x30, [sp], 16 //unload from the stack
+  str x30, [sp, -16]! //store x30 to return
+  str x0, [sp, -16]!  //store x0 to write to
+  mov x3, x1          //put this here for safekeeping
+  add x0, x0, yOffset //offset it to load in the y first
+  ldr x1, [x0], negYOffset//loads the y from x0 and unofsets
+  ldr x0, [x0]        //loads the x from x0
+  ldr x2, [x3], yOffset//load the x from arg 2
+  ldr x3, [x3]        //loads the y from arg 2
+  add x3, x1, x3      //add the y from arg 1 and from arg 2 and puts it in x3
+  add x1, x0, x2      //add the x from arg 1 and from arg 2 and puts it in x1
+  mov x2, x3          //put the y sum into x2 to call set pos data
+  ldr x0, [sp], 16    //load arg 1 from the stack and put it in x0
+  bl setPositionData
+  ldr x30, [sp], 16   //load x30 to return
   ret //return
 
 getPosDataDif:
@@ -279,29 +286,14 @@ gameLoop:
 
   bl clear
   bl getKeyPress
-
   cmp x0, QKeyCode //check if they're the same
   beq end          //if so go to end
 
-  mov x1, x0
-  mov x0, x27
-  bl getDirFromKeyCode //get the direction from the keycode
-  //bl getPosDataVals    //get the values from that direction
-  //cmp x0, 2 //if x0 (X value) is 2 then its null, if it is null we skip
-  //beq 1f    //(TEMPORARY)
-  //TODO add regular snake movement
-  mov x0, x27
-  bl getPosDataVals
-  cmp x0, 2
-  beq 1f
-  mov x1, x27     //set the thing to set direction to to reqDir
-  mov x0, x26     //set arg 0 to be the direction
-  bl setPositionDataToOtherData //set direction to te requested direction
-1: //if its two ignore that ^
   //change position
-  mov x1, x26
-  mov x0,x21
-  bl addPositionDatas
+  mov x0, x21 //load args
+  mov x1, 1
+  mov x2, 0
+  bl movePosData
 
   mov x0, x21
   mov x1, headChar//set the character the head character
