@@ -14,6 +14,14 @@ numFmt: .asciz "%d, %d\n"
 .equ QKeyCode, 81
 .global main
 
+modulo:
+  //assume x0 is a
+  //and x1 is b
+  udiv x3, x0, x1 // x3 = a/b 
+  mul x3, x3, x1  // x3 = b * x3
+  sub x0, x0, x3  // x0 = a - x3
+  ret             //return that value
+
 getPosDataVals:
   //x0 is pointer
   add x0, x0, yOffset
@@ -216,6 +224,7 @@ wrapPosition:
   //in is in x0
   //maxX andY (struct) are in x2
   //This will be painful
+  //very painful
 
 main:
   stp x30, x19, [sp, -16]! //store x30 on the stack so we can return
