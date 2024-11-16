@@ -17,6 +17,7 @@ you need a few things:
   yay -S gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
   ```
   or with your prefered aur helper
+
   debian based distros:
 ```
 sudo apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
