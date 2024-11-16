@@ -2,7 +2,8 @@
 snake in armv8 assembly
 
 # current status
-wip, not complete (expect a week or two to be finished)
+wip, not complete --(expect a week or two to be finished)--
+expect around 3 weeks.
 
 # current progress
 right now, it responds to player input, and there is a 'player'
