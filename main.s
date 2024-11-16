@@ -204,7 +204,7 @@ isPos:
   //assume number is in x0
   //check if its greater than or equal to 0
   cmp x0, 0
-  bgt 1f
+  bge 1f
   mov x0, 1
   b 2f
 1:
@@ -218,74 +218,81 @@ wrapPosition:
   //This will be painful
   //very painful
   //in fact so painful we are going to be storing some registers
-  stp x30, x19, [sp, -16]!//store x30 n the stack to return
-  stp x20, x21, [sp, -16]!
-  stp x22, x23, [sp, -16]!//store a bunch of stuff on the stack so we can do stuff with em
-  str x24, [sp, -16]!
+  str x30, [sp, -16]! //store this so we can return
+  stp x19, x20, [sp, -16]! //the rest of thses are just to store data
+  stp x21, x22, [sp, -16]!
+  stp x23, x24, [sp, -16]!
 
-  mov x24, x1  //put maxX, maxY in x24
-  mov x23, x0 //put struct in x23
-  ldr x0, [x23] //load x
-  ldr x1, [x24, yOffset] //load max x
-  cmp x0, x1              //compare the two
-  ble 1f                  //if its less than we set x19 to 0
-  mov x19, 1              //otherwise we set it to 1
-  b 2f                    //skip over to 2
-1:
-  mov x19, 0              //here is where we set it to 0
-2:
-  ldr x0, [x23, yOffset]//here is where we load the y and undo that offset
-  ldr x1, [x24]//load max y and undo offset
-  cmp x0, x1              //comparisions are the same as up there
-  ble 1f
-  mov x20, 1
+  mov x23, x0 //loading these in so we don't have to worry about overriding thme later
+  mov x24, x1
+
+  // 1: getting less than maxX
+  ldr x0, [x0] //recall in x0 is the struct
+  ldr x1, [x1, yOffset] //and in x1 is the maxPoses
+  //we have to offset because that ones in reverse
+  cmp x0, x1  //if its less than / equal to we set to true
+  bge 1f
+  //here we are if its true
+  mov x19, 0
+  // the reason we set it to 0 for true will be apparent soon
   b 2f
 1:
-  mov x20, 0
+  mov x19, 1
 2:
-  //now we get isPos
+  // 1.5: getting less than maxY
+  ldr x0, [x23, yOffset] //x23 has struct
+  ldr x1, [x24]  //x24 has maxVals, (they in reverse tho)
+  cmp x0, x1 //compare if its less than / equel we set to true
+  bge 1f
+  //we are true here now
+  mov x20, 0
+  b 2f
+1:
+  mov x20, 1
+2:
+  // 2: getting if pos or not
+  ldr x0, [x23] //load x value from memory
+  bl isPos      //this returns it in the format we want
+  mov x21, x0   //store the output in x21
+  ldr x0, [x23, yOffset] //load the y value from ememory
+  bl isPos      //in the correct format
+  mov x22, x0   //put the output in x22
+
+  //add them together for an "and"
+  add x0, x19, x21 //group all the x related ones together
+  add x1, x20, x22 //group all the y related ones together
+  add x1, x0, x1   //add them together (this is why our format was true 0, false 1)
+  cbz x1, 99f       //if they're all 0 (true) then we can leave
+
+  cbz x0, 44f     //if the x related ones are 0 (true) then somethings u with the y axis
+
   ldr x0, [x23]
-  bl isPos                  //if x is negative we store it in x21
-  mov x21, x0
-  ldr x0, [x23, yOffset]
-  bl isPos                  //get if its pos or not
-  mov x22, x0               //put it all in x22
+  ldr x1, [x24, yOffset]
 
-  mov x1, x20
-  mov x2, x22
-  add x0, x19, x21          //these contain if something is wrong with x, if 0 then its good
-  add x1, x20, x22          //^ but for y
-  add x1, x1, x0            //add them together if its all 0 then its all good
-  cbz x1, 99f               //if its 0 that means nothings wrong and then we go to end
-  
-  //otherwise, we're here and we remember if somethings wrong with x
-  cbz x0, 44f
-  //if the x conditions are fine, then we know its the y and then go to that area
-
-  //now we know somethings up with the x values
-  //there was some code that loaded the x values with bl
-  ldr x0, [x23] //load x value into x0
-  ldr x1, [x24, yOffset] //load max x value into x1
-  cbz x19, 22f
-  //now we know x19 is greater than maxX
+  cbz x19, 11f     //if it is less then maxX then we know its negative
+  //we now know that it is too big, so we modulo it
   bl modulo
-  b 23f
-22:
-  //here we know its negative
+  b 22f
+11:
+  //here we know that its negative
+  //maxX - abs(x)
+  //we know its negative so then it beomes
+  //maxX + x
   add x0, x0, x1
-23:
+22:
+  //here we store the value
   str x0, [x23]
+  b 99f //and then return
+
 44:
-  //we know somethings up with the y values
-  //there was some unessesary stuff here that used a function
+  //this is practically the same as the x but with some registers different and some offsets different, don't expect good cmetns here
+
   ldr x0, [x23, yOffset]
   ldr x1, [x24]
   cbz x20, 45f
-  //now we know its bigger than maxY
   bl modulo
   b 46f
 45:
-  //now we know is negative
   add x0, x0, x1
 46:
   str x0, [x23, yOffset]
@@ -295,15 +302,13 @@ wrapPosition:
   //x22: is negative, y    (BOOl)
   //x23: struct to wrap    (POINTER)
   //x24: maxX and maxY struct (POINTER)
+
 99:
-  //unload a bunch of stuff from the stack
-  ldr x24, [sp], 16
-  ldp x22, x23, [sp], 16
-  ldp x20, x21, [sp], 16
-  ldp x30, x19, [sp], 16
-
+  ldp x23, x24, [sp], 16 //load all the stuff from the stack to return
+  ldp x21, x22, [sp], 16
+  ldp x19, x20, [sp], 16
+  ldr x30, [sp], 16      //in reverse order too
   ret
-
 
 main:
   stp x30, x19, [sp, -16]! //store x30 on the stack so we can return
@@ -325,10 +330,9 @@ main:
 
   mov x0, x22//set arg 1 to be stdscr
   bl getmaxx //get the maximum y value
-  sub x1, x0, 1 //sub 1 to make it inclusive, put it in x1
+  mov x1, x0
   mov x0, x22//put stdscr as arg 1
   bl getmaxy //get maxx (its in x0)
-  sub x0, x0, 1 //sub 1 to make it inclusive put it in x0
   bl initPosData //make a pos data from this
   mov x19, x0    //store max vals in x19
 
@@ -398,6 +402,9 @@ gameLoop:
   mov x0, x21 //set the box as the object to loop
   mov x1, x19 //set the maxX and y as the max x and y
   bl wrapPosition
+
+  mov x0, x21
+  bl printPositionData
 
   mov x0, x21     //set the pos data to draw to be the box
   mov x1, headChar//set the character the head character
