@@ -403,9 +403,6 @@ gameLoop:
   mov x1, x19 //set the maxX and y as the max x and y
   bl wrapPosition
 
-  mov x0, x21
-  bl printPositionData
-
   mov x0, x21     //set the pos data to draw to be the box
   mov x1, headChar//set the character the head character
   mov x2, x22    //set the screen to draw on to be std screen
