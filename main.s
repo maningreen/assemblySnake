@@ -22,6 +22,16 @@ modulo:
   sub x0, x0, x3  // x0 = a - x3
   ret             //return that value
 
+abs:
+  cmp x0, 0
+  blt 1f
+  b 2f
+1:
+  mov x1, --1
+  mul x0, x0, x1
+2:
+  ret
+
 getPosDataVals:
   //x0 is pointer
   add x0, x0, yOffset
@@ -89,13 +99,17 @@ movePosDataByOtherPosData:
   ldr x30, [sp], 16   //load x30 to return
   ret //return
 
-getPosDataDif:
+getPosDataSum:
   //x0 is pointer 1
   //x1 is pointer 2
-  ldp x2, x3, [x0] //load both the values from x0
-  ldp x4, x5, [x1] //load both values from x1
-  sub x0, x2, x4   //get the difference of x values put in x0
-  sub x1, x3, x5   //get the difference of y values put in x1
+  ldr x2, [x0]
+  ldr x4, [x1]
+  add x0, x0, yOffset
+  add x1, x1, yOffset
+  ldr x3, [x0]
+  ldr x5, [x1]
+  add x0, x2, x4   //get the difference of x values put in x0
+  add x1, x3, x5   //get the difference of y values put in x1
   ret              //return
 
 printPositionData:
@@ -382,6 +396,58 @@ printBody:
   ldr x30, [sp], 16   //again to return
   ret
 
+moveBody:
+  //x0 should have the head struct
+  //x1 should have the ptr to the array
+  //x2 should have the array size
+  str x30, [sp, -16]! //push x30 onto stack and adjust it accordingly
+  stp x20, x21, [sp, -16]!
+  str x22, [sp, -16]!
+
+  mov x20, x0 //put our starting struct into x20
+  mov x21, x1 //put our array ptr in x21
+  mov x22, x2 //put our array size in x22
+
+1:
+  //basically we set every item to be the position of the last item
+  //i wanna see if we can just do a funk ton of ptr math instead of just copying the values
+  //i don't think we can do that though
+  //we could probably make the body system much more effective though
+
+  //x20 starting struct
+  //x21 array ptr
+  //x22 array size (already in array format (0 being 1 segment 1 being 2 (there will be 1 at the head)))
+1:
+  cmp x22, 0    //check if we outa bounds
+  ble 99f       //if we are then we head to 99
+
+  mov x0, structSize
+  sub x1, x22, 1
+  mul x0, x0, x1
+  add x0, x0, x21
+  ldr x1, [x0, yOffset]
+  ldr x2, [x0]
+  add x0, x0, structSize
+
+  str x1, [x0, yOffset]
+  str x2, [x0]
+
+  sub x22, x22, 1
+  b 1b
+
+99:
+  //set the first item to be the head
+  ldr x0, [x20]         //load the x into x0
+  ldr x1, [x20, yOffset]//load the y into x1
+
+  str x0, [x21]         //store x0 as the x value
+  str x1, [x21, yOffset]//store x1 as the y value
+
+  ldr x22, [sp], 16
+  ldp x20, x21, [sp], 16
+  ldr x30, [sp], 16   //pop x30 from the stack and adjust it accordingly
+  ret
+
 main:
   stp x30, x19, [sp, -16]! //store x30 on the stack so we can return
   stp x20, x21, [sp, -16]! //store the rest on the stack so we can return
@@ -408,6 +474,8 @@ main:
   mov x1, 1   //set arg 2 to true
   bl nodelay
 
+  bl noecho   //hide player input
+
   mov x0, 0
   bl curs_set //make the cursor invisible
 
@@ -430,34 +498,35 @@ main:
   //an x value and a y value, both at the center of the screen
   mov x0, x19 //max vals are in here (inclusive (what we want))
   bl getPosDataVals
-  mov x3, 2      //for some reason  udiv requires registers
-  udiv x0, x0, x3 //divide by two to get center of screen
-  udiv x1, x1, x3 //divide by two to get center of the screen
+  mov x0, x0, lsr 1
+  mov x1, x1, lsr 1
   bl initPosData
   mov x21, x0
 
   mov x0, 0     //set collumn to 0 for initial direction
-  mov x1, -1    //set row to -1 for initiate direction <--
+  mov x1, -1    //set row to -1 for initiate direction <-- (its that way)
   bl initPosData
   mov x26, x0
   //set x26 to be our position data
 
   //reqDir
   mov x0, 0     //set it to 1 temporarily
-  mov x1, x0    //seti it to 1 (this will get immediatly overwriten)
+  mov x1, x0    //set it to 1 (this *WILL* get overwritten immediatly)
   bl initPosData//initiate it
   mov x27, x0   //set x27 to reqDir
 
   //now we have the two registers for body
   //first: length
   //second: array
-  mov x24, 2
+  mov x24, 1    //(its from 0 - 1)
   //thrilling.
   //next is for the array
 
   //we have functoin initBody(int bodysize)
   //recall x25 has the ptr to body
-  mov x0, x24 //put the size in x24
+  add x0, x24, 1//put the size in x24
+  mov x1, structSize //mul takes registers only
+  mul x0, x0, x1
   bl initBody
   mov x25, x0 //it returns a pointer and we put it in x25
 
@@ -481,21 +550,35 @@ gameLoop:
   mov x1, x0  //the inputed key code put in arg 2
   mov x0, x27 //put reqDir in arg 1
   bl getDirFromKeyCode //set reqDir to be the coorosponding diretion
-  bl getPosDataVals    //then we check if its null (x is 2)
-  cmp x0, 2            //if it is then we skip setting
+
+
+  //we have to check if the sum of them is = to 0 for both (that means they're opposites)
+  ldr x0, [x26]
+  ldr x1, [x26, yOffset]
+  ldr x2, [x27]
+  ldr x3, [x27, yOffset]
+
+  cmp x2, 2            //if it is then we skip setting
   beq 1f               //here is the branch to 1f
-  mov x0, x26          //otherwise, we are here and thus we set x0 to be the directon
-  mov x1, x27          //x1 to be the reqDir
+  cmp x0, x3
+  beq 1f
+  cmp x1, x2
+  beq 1f
+
+  //now x0 has the x sum
+  //and x1 has the y sum
+  //if we add them all together, and the sum is 0 then we promptly ignore
+
+  mov x0, x26
+  mov x1, x27
   bl setPosDataToOtherData//and we sest dir to reqDir
   //that wasn't so hard was it? (it was)
 1:
-  
-  //print body
-  mov x0, x25
-  mov x1, x24
-  mov x2, x22
-  bl printBody
 
+  mov x0, x27
+  bl printPositionData
+  mov x0, x26
+  bl printPositionData
 
   //change position of box based on direction
   mov x0, x21 //load args
@@ -507,6 +590,19 @@ gameLoop:
   mov x1, x19 //set the maxX and y as the max x and y
   bl wrapPosition
 
+  //move body
+  mov x0, x21
+  mov x1, x25
+  mov x2, x24
+  bl moveBody
+
+  //print body
+  mov x0, x25
+  mov x1, x24
+  mov x2, x22
+  bl printBody
+
+  //print head
   mov x0, x21     //set the pos data to draw to be the box
   mov x1, headChar//set the character the head character
   mov x2, x22    //set the screen to draw on to be std screen
@@ -514,7 +610,7 @@ gameLoop:
 
   bl refresh     //refresh the screen
 
-  bl delayTick    //delay the game by .1 seconds
+  bl delayTick    //delay the game by ~.1 seconds
 
   b gameLoop      //go back to gameLoop
 
