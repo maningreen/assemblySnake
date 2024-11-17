@@ -448,6 +448,15 @@ moveBody:
   ldr x30, [sp], 16   //pop x30 from the stack and adjust it accordingly
   ret
 
+setPosRand:
+  //x0 has ptr to set
+  //x1 has maxX, maxY
+  //sets a potition data to a random position. ye.
+  mov x2, 0
+  str x2, [x0]
+  str x2, [x0, yOffset]
+  ret
+
 main:
   stp x30, x19, [sp, -16]! //store x30 on the stack so we can return
   stp x20, x21, [sp, -16]! //store the rest on the stack so we can return
@@ -530,6 +539,13 @@ main:
   bl initBody
   mov x25, x0 //it returns a pointer and we put it in x25
 
+  //appal :)
+  mov x0, structSize
+  bl malloc
+  mov x23, x0
+  mov x1, x19
+  bl setPosRand
+
   //x19 maxVals
   //x20 maxLength, won
   //x21, box
@@ -574,12 +590,6 @@ gameLoop:
   bl setPosDataToOtherData//and we sest dir to reqDir
   //that wasn't so hard was it? (it was)
 1:
-
-  mov x0, x27
-  bl printPositionData
-  mov x0, x26
-  bl printPositionData
-
   //change position of box based on direction
   mov x0, x21 //load args
   mov x1, x26
@@ -608,6 +618,12 @@ gameLoop:
   mov x2, x22    //set the screen to draw on to be std screen
   bl drawPositionData//draw the position
 
+  //print appal
+  mov x0, x23
+  mov x1, applChar
+  mov x2, x22
+  //bl drawPositionData
+
   bl refresh     //refresh the screen
 
   bl delayTick    //delay the game by ~.1 seconds
@@ -625,6 +641,9 @@ end:
   bl free
 
   mov x0, x21 //free the head pos
+  bl free
+
+  mov x0, x23 //free the appale
   bl free
 
   mov x0, x25 //free the body array
