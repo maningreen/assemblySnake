@@ -64,7 +64,7 @@ setPositionData:
   str x2, [x0, negYOffset]!
   ret
 
-setPositionDataToOtherData:
+setPosDataToOtherData:
   //assume in x0 is the pointer to set
   //assume in x1 is the pointer to read
   str x30, [sp, -16]! //load x30 to the stack
@@ -283,7 +283,6 @@ wrapPosition:
   //here we store the value
   str x0, [x23]
   b 99f //and then return
-
 44:
   //this is practically the same as the x but with some registers different and some offsets different, don't expect good cmetns here
 
@@ -310,6 +309,80 @@ wrapPosition:
   ldr x30, [sp], 16      //in reverse order too
   ret
 
+initBody:
+  //in x0 there should be a size requested
+  stp x30, x22, [sp, -16]! //do this so we store x30 to return
+  //and x22 is to put in the pointer
+
+  
+  //here we allocate the memory
+  str x0, [sp, -16]!
+  mov x1, structSize     //mul only takes registers
+  mul x0, x0, x1         //multiply the requested size by the struct size
+  bl malloc              //allocate the memory with malloc
+  mov x22, x0            //put the pointer in x22
+
+  //now in x22 there is a pointer to the start of the array
+  //now we wanna loop over ever element and set it to lets say 1, 1 for now
+
+  //first we load the count into x1
+  ldr x1, [sp], 16  //recall we put x1 at sp, we don't increment it because we don't do anything else with the stack
+
+1:
+  cmp x1, 0     //we deincrement it instead of incrementing it
+  blt 99f       //if its less than 0 then we know we're out of bound sand then just go ot the end
+  //now we do pointermath *scary*
+  //first we get the 'x' element of the struct
+  mov x4, structSize      //mull only takes registers
+  mul x0, x1, x4  //now x0 has the relative offset from the ptr
+  add x0, x0, x22 //recal the ptr is in x22, then we make it a global position in the memory
+  mov x4, 1               //TODO: not this, make it based off of the actual starting position:
+  str x4, [x0]            //store x4 at the global position
+  str x4, [x0, yOffset]   // store it again but offset to be in accord with the y
+
+  sub x1, x1, 1           //de increment
+  b 1b                    //go back to the loop
+
+99:
+  mov x0, x22
+  ldp x30, x22, [sp], 16   //load x30 from the stack and increment it back
+  ret
+
+printBody:
+  //assume two things
+  //x0 has ptr
+  //x1 has size
+  //x2 has the screen
+  str x30, [sp, -16]! //do this to return
+  stp x19, x20, [sp, -16]! //do this to store the ptr and size
+  str x21, [sp, -16]!
+
+  mov x19, x0   //put the pointer into x19
+  mov x20, x1   //put the size into x20
+  mov x21, x2   //put tthe screen pt in x21
+
+1:
+  cmp x20, 0
+  blt 99f
+  //pointer math jumpscare
+  //so first we have to load the stuff from memory
+  //well we have a function that does all the hard things
+  mov x0, x19 //pointers in x19
+  mov x1, structSize //put the size into x1
+  mul x1, x1, x20    //multiply the size with the structSize
+  add x0, x0, x1
+  mov x1, bodyChar   //put the bodychar to be the character
+  mov x2, x21
+  bl drawPositionData
+  sub x20, x20, 1
+  b 1b
+
+99:
+  ldr x21, [sp], 16
+  ldp x19, x20, [sp], 16  //pop off the stack
+  ldr x30, [sp], 16   //again to return
+  ret
+
 main:
   stp x30, x19, [sp, -16]! //store x30 on the stack so we can return
   stp x20, x21, [sp, -16]! //store the rest on the stack so we can return
@@ -317,6 +390,17 @@ main:
   stp x24, x25, [sp, -16]!
   stp x26, x27, [sp, -16]!
   str x28, [sp, -16]!
+
+  //this is nice.
+  //x19 maxVals
+  //x20 maxLength, won
+  //x21, box
+  //x22 stdscr
+  //x23, apple
+  //x24, bodyLength
+  //x25, bodyArray
+  //x26, direction
+  //x27, reqDir
 
   bl initscr  //get stdscr
   mov x22, x0 //put that baby in x22
@@ -365,6 +449,19 @@ main:
   bl initPosData//initiate it
   mov x27, x0   //set x27 to reqDir
 
+  //now we have the two registers for body
+  //first: length
+  //second: array
+  mov x24, 2
+  //thrilling.
+  //next is for the array
+
+  //we have functoin initBody(int bodysize)
+  //recall x25 has the ptr to body
+  mov x0, x24 //put the size in x24
+  bl initBody
+  mov x25, x0 //it returns a pointer and we put it in x25
+
   //x19 maxVals
   //x20 maxLength, won
   //x21, box
@@ -390,10 +487,18 @@ gameLoop:
   beq 1f               //here is the branch to 1f
   mov x0, x26          //otherwise, we are here and thus we set x0 to be the directon
   mov x1, x27          //x1 to be the reqDir
-  bl setPositionDataToOtherData//and we sest dir to reqDir
+  bl setPosDataToOtherData//and we sest dir to reqDir
   //that wasn't so hard was it? (it was)
 1:
-  //change position of box
+  
+  //print body
+  mov x0, x25
+  mov x1, x24
+  mov x2, x22
+  bl printBody
+
+
+  //change position of box based on direction
   mov x0, x21 //load args
   mov x1, x26
   bl movePosDataByOtherPosData
@@ -412,7 +517,7 @@ gameLoop:
 
   bl delayTick    //delay the game by .1 seconds
 
- b gameLoop      //go back to gameLoop
+  b gameLoop      //go back to gameLoop
 
 end:
   mov x0, x22
@@ -425,6 +530,9 @@ end:
   bl free
 
   mov x0, x21 //free the head pos
+  bl free
+
+  mov x0, x25 //free the body array
   bl free
 
   mov x0, x26 //free direction
