@@ -362,8 +362,8 @@ printBody:
   mov x21, x2   //put tthe screen pt in x21
 
 1:
-  cmp x20, 0
-  blt 99f
+  cmp x20, 0  //if x20 is less than 0
+  blt 99f     //then we end
   //pointer math jumpscare
   //so first we have to load the stuff from memory
   //well we have a function that does all the hard things
@@ -372,11 +372,10 @@ printBody:
   mul x1, x1, x20    //multiply the size with the structSize
   add x0, x0, x1
   mov x1, bodyChar   //put the bodychar to be the character
-  mov x2, x21
-  bl drawPositionData
-  sub x20, x20, 1
-  b 1b
-
+  mov x2, x21        //put the screen in x2
+  bl drawPositionData//draw them
+  sub x20, x20, 1   //de-increment the counter
+  b 1b              //go back to 1b
 99:
   ldr x21, [sp], 16
   ldp x19, x20, [sp], 16  //pop off the stack
