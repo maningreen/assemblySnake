@@ -1,5 +1,5 @@
 .data
-numFmt: .asciz "%d, %d\n"
+numFmt: .asciz "%d, %d"
 .text
 .equ yOffset, 8
 .equ negYOffset, -8
@@ -407,8 +407,6 @@ moveBody:
   mov x20, x0 //put our starting struct into x20
   mov x21, x1 //put our array ptr in x21
   mov x22, x2 //put our array size in x22
-
-1:
   //basically we set every item to be the position of the last item
   //i wanna see if we can just do a funk ton of ptr math instead of just copying the values
   //i don't think we can do that though
@@ -434,7 +432,6 @@ moveBody:
 
   sub x22, x22, 1
   b 1b
-
 99:
   //set the first item to be the head
   ldr x0, [x20]         //load the x into x0
@@ -452,9 +449,48 @@ setPosRand:
   //x0 has ptr to set
   //x1 has maxX, maxY
   //sets a potition data to a random position. ye.
-  mov x2, 0
-  str x2, [x0]
-  str x2, [x0, yOffset]
+  str x30, [sp, -16]!
+  stp x20, x21, [sp, -16]!
+
+  mov x20, x1
+  mov x21, x0
+
+  //srand(time(NULL));
+  mov x0, xzr
+  bl time
+  bl srand
+
+  bl rand
+  str x0, [x21]
+  bl rand
+  str x0, [x21, yOffset]
+
+  mov x0, x21
+  mov x1, x20
+  bl wrapPosition
+  mov x0, x21
+  mov x1, x20
+  bl wrapPosition //run wrap twice, it only accounts for x, and y one at a time
+
+  ldp x20, x21, [sp], 16
+  ldr x30, [sp], 16
+  ret
+
+getColliding:
+  //x0 has ptr 1
+  //x1 has ptr 2
+  ldr x3, [x1, yOffset]
+  ldr x2, [x1]
+  ldr x1, [x0, yOffset]
+  ldr x0, [x0]
+  cmp x0, x2
+  bne 1f
+  cmp x1, x3
+  bne 1f
+  mov x0, 1
+  ret
+1:
+  mov x0, 0
   ret
 
 main:
@@ -567,7 +603,6 @@ gameLoop:
   mov x0, x27 //put reqDir in arg 1
   bl getDirFromKeyCode //set reqDir to be the coorosponding diretion
 
-
   //we have to check if the sum of them is = to 0 for both (that means they're opposites)
   ldr x0, [x26]
   ldr x1, [x26, yOffset]
@@ -590,6 +625,7 @@ gameLoop:
   bl setPosDataToOtherData//and we sest dir to reqDir
   //that wasn't so hard was it? (it was)
 1:
+
   //change position of box based on direction
   mov x0, x21 //load args
   mov x1, x26
@@ -622,7 +658,7 @@ gameLoop:
   mov x0, x23
   mov x1, applChar
   mov x2, x22
-  //bl drawPositionData
+  bl drawPositionData
 
   bl refresh     //refresh the screen
 
