@@ -8,6 +8,8 @@ expect around 3 weeks.
 # current progress
 you can move, it has snake movement, but if you eat two apples the game crashes. and the core gets dumped. Still working on that growth
 
+(IT DOESNT DUMP ON THE RELEASED VERSION, only on the development one :), only i deserve to suffer)
+
 working on that.
 
 and if you run into yourself the game ends.
