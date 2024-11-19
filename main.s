@@ -27,7 +27,7 @@ abs:
   blt 1f
   b 2f
 1:
-  mov x1, --1
+  mov x1, -1
   mul x0, x0, x1
 2:
   ret
@@ -87,7 +87,6 @@ setPosDataToOtherData:
   bl setPositionData     //then we set the pos data
   ldr x30, [sp], 16      //load x30 from the stack
   ret                    //and return
-  
 
 movePosDataByOtherPosData:
   str x30, [sp, -16]! //store x30 on the stack and increment by -16
@@ -152,6 +151,7 @@ drawPositionData:
   //but why not just use the character?
   //well an array is just a pointer, an address is just a pointer,
   //an address, is just an array, and a string is just an array of characters
+  //and by equality an address is just a string
   //and so we just use the address
   bl printw
   ldr x30, [sp], 16 //load the two we stored and offset sp back
@@ -328,20 +328,17 @@ initBody:
   stp x30, x22, [sp, -16]! //do this so we store x30 to return
   //and x22 is to put in the pointer
 
-  
-  //here we allocate the memory
-  str x0, [sp, -16]!
-  mov x1, structSize     //mul only takes registers
-  mul x0, x0, x1         //multiply the requested size by the struct size
-  bl malloc              //allocate the memory with malloc
-  mov x22, x0            //put the pointer in x22
+  mov x22, x0
+  mov x1, structSize
+  mul x0, x1, x0
+  bl calloc         //i tried using malloc here but for anything larger than an 1 it kills itself
+  mov x1, x22
+  mov x22, x0
 
   //now in x22 there is a pointer to the start of the array
   //now we wanna loop over ever element and set it to lets say 1, 1 for now
 
   //first we load the count into x1
-  ldr x1, [sp], 16  //recall we put x1 at sp, we don't increment it because we don't do anything else with the stack
-
 1:
   cmp x1, 0     //we deincrement it instead of incrementing it
   blt 99f       //if its less than 0 then we know we're out of bound sand then just go ot the end
@@ -374,7 +371,6 @@ printBody:
   mov x19, x0   //put the pointer into x19
   mov x20, x1   //put the size into x20
   mov x21, x2   //put tthe screen pt in x21
-
 1:
   cmp x20, 0  //if x20 is less than 0
   blt 99f     //then we end
@@ -488,10 +484,77 @@ getColliding:
   cmp x1, x3
   bne 1f
   mov x0, 1
-  ret
+  b 2f
 1:
   mov x0, 0
+2:
   ret
+
+getCollidingWithBody:
+  //x0 has what we want to chec
+  //x1 has the bodyarray
+  //x2 has the bodyLength
+
+  //in c it'd go someting like this
+  //funcName(posData item, posData* bodyArray, int bodyLength) {
+  //  bodyLength--;
+  //  while(bodyLength >= 0) {
+  //    if(getColliding(head, *(bodyarray + bodyLength)))
+  //      return true;
+  //    bodyLength--;
+  //  }
+  //  return false
+  //}
+  //ore something lke that
+  //of course its GOING to be different because we wouldn't dereference and its all pointers
+  //ITS ALL POINTERS!?
+  //always has been.
+  str x30, [sp, -16]! //store x30 on the stack so we can return :D
+  stp x20, x21, [sp, -16]! //store x20, and x21 on the stack so we can write stuff
+  str x22, [sp, -16]!  //store x22 on the stack to write stuff in that register
+
+  //x0 has item to check
+  //x1 has array
+  //x2 has length of array
+  mov x20, x0   //store it so we can do stuff
+  mov x21, x1   //store it so we can reference it later
+  sub x22, x2, 1//bodyLength--; //:) (its quicker), also here we want to put it in bytes
+  mov x0, structSize
+  mul x22, x22, x0 //here we're turning it into bytes so we do less thinking in the end
+
+  //TODO:
+  //only load the x and y of the single item once
+  //touch memory less
+
+1:
+  //LOOP
+  cmp x22, 0    //while -->(bodyLength >= 0)<--
+  blt 98f
+
+  ldr x0, [x20] //load primary thing
+  add x2, x21, x22
+  ldr x1, [x2] //array x item it at an offset
+  cmp x0, x1
+  bne 3f        //if this isn't the same we just skip lol
+  //now we know at least the x's are the same
+  ldr x0, [x20, yOffset] //load the primary y val
+  ldr x1, [x2, yOffset]  //load the secondary y val
+  cmp x0, x1
+  bne 3f
+  //ITS TRUE :O
+  mov x0, 1   //1 for true
+  b 99f       //dip lol
+3:
+  sub x22, x22, yOffset //LOOP BACK TO 1
+  b 1b
+98:
+  //we made it here, so chances are it aint colliding
+  mov x0, 0 //0 for false
+99:
+  ldr x22, [sp], 16     //load all of em off the stack and offset
+  ldp x20, x21, [sp], 16
+  ldr x30, [sp], 16
+  ret                  //return and stuff :)
 
 main:
   stp x30, x19, [sp, -16]! //store x30 on the stack so we can return
@@ -563,15 +626,13 @@ main:
   //now we have the two registers for body
   //first: length
   //second: array
-  mov x24, 1    //(its from 0 - 1)
+  mov x24, 11    //(its from 0 - 1)
   //thrilling.
   //next is for the array
 
   //we have functoin initBody(int bodysize)
   //recall x25 has the ptr to body
-  add x0, x24, 1//put the size in x24
-  mov x1, structSize //mul takes registers only
-  mul x0, x0, x1
+  mov x0, x24
   bl initBody
   mov x25, x0 //it returns a pointer and we put it in x25
 
@@ -616,10 +677,6 @@ gameLoop:
   cmp x1, x2
   beq 1f
 
-  //now x0 has the x sum
-  //and x1 has the y sum
-  //if we add them all together, and the sum is 0 then we promptly ignore
-
   mov x0, x26
   mov x1, x27
   bl setPosDataToOtherData//and we sest dir to reqDir
@@ -642,23 +699,38 @@ gameLoop:
   mov x2, x24
   bl moveBody
 
+  mov x0, x21
+  add x1, x25, structSize
+  mov x2, x24
+  bl getCollidingWithBody
+  cbnz x0, end
+  //x19 maxVals
+  //x20 maxLength, won
+  //x21, box
+  //x22 stdscr
+  //x23, apple
+  //x24, bodyLength
+  //x25, bodyArray
+  //x26, direction
+  //x27, reqDir
+
   //print body
   mov x0, x25
   mov x1, x24
   mov x2, x22
   bl printBody
 
-  //print head
-  mov x0, x21     //set the pos data to draw to be the box
-  mov x1, headChar//set the character the head character
-  mov x2, x22    //set the screen to draw on to be std screen
-  bl drawPositionData//draw the position
-
   //print appal
   mov x0, x23
   mov x1, applChar
   mov x2, x22
   bl drawPositionData
+
+  //print head
+  mov x0, x21     //set the pos data to draw to be the box
+  mov x1, headChar//set the character the head character
+  mov x2, x22    //set the screen to draw on to be std screen
+  bl drawPositionData//draw the position
 
   bl refresh     //refresh the screen
 
