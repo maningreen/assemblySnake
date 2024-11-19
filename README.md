@@ -6,8 +6,11 @@ wip, not complete --(expect a week or two to be finished)--
 expect around 3 weeks.
 
 # current progress
-right now, it responds to player input, and there is a 'player'
-implementing a body for the snake next. Expect that to take a while.
+you can move, it has snake movement, but if you eat two apples the game crashes. and the core gets dumped. Still working on that growth
+
+working on that.
+
+and if you run into yourself the game ends.
 
 # requirements to run
 you need a few things:
@@ -20,7 +23,7 @@ you need a few things:
   ```
   or with your preferred aur helper
 
-  debian based distros (idk tho i use arch btw):
+  debian based distros (i'm not sure though, i don't use debian):
 ```
 sudo apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu ncurses
 ```
@@ -30,3 +33,8 @@ sudo apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu ncurses
 
 # how to compile
 run compile.sh
+
+# how to run
+after you run compile.sh
+
+run the snake executable. its in armv8 binaries though, so beware if on x86
