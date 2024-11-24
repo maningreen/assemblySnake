@@ -324,39 +324,43 @@ wrapPosition:
   ret
 
 initBody:
-  //in x0 there should be a size requested
-  stp x30, x22, [sp, -16]! //do this so we store x30 to return
-  //and x22 is to put in the pointer
+  //x0 has the requested size, we supply the ptr
+  //x1, should have stdscr ptr
+  str x30, [sp, -16]!
+  stp x20, x21, [sp, -16]!
+  stp x22, x23, [sp, -16]!
 
-  mov x22, x0
+  mov x21, x1
+
   mov x1, structSize
-  mul x0, x1, x0
-  bl calloc         //i tried using malloc here but for anything larger than an 1 it kills itself
-  mov x1, x22
+  mul x0, x0, x1
+  mov x23, x0
+  bl malloc
   mov x22, x0
 
-  //now in x22 there is a pointer to the start of the array
-  //now we wanna loop over ever element and set it to lets say 1, 1 for now
+  mov x0, x21
+  bl getmaxy
+  add x20, x0, 1
+  mov x0, x21
+  bl getmaxx
+  mov x21, x0
 
-  //first we load the count into x1
+  sub x23, x23, structSize
 1:
-  cmp x1, 0     //we deincrement it instead of incrementing it
-  blt 99f       //if its less than 0 then we know we're out of bound sand then just go ot the end
-  //now we do pointermath *scary*
-  //first we get the 'x' element of the struct
-  mov x4, structSize      //mull only takes registers
-  mul x0, x1, x4  //now x0 has the relative offset from the ptr
-  add x0, x0, x22 //recal the ptr is in x22, then we make it a global position in the memory
-  mov x4, 1               //TODO: not this, make it based off of the actual starting position:
-  str x4, [x0]            //store x4 at the global position
-  str x4, [x0, yOffset]   // store it again but offset to be in accord with the y
+  cmp x23, 0
+  blt 99f
 
-  sub x1, x1, 1           //de increment
-  b 1b                    //go back to the loop
+  add x0, x22, x23
+  str x20, [x0]
+  str x21, [x0, yOffset]
 
+  sub x23, x23, structSize
+  b 1b
 99:
   mov x0, x22
-  ldp x30, x22, [sp], 16   //load x30 from the stack and increment it back
+  ldp x22, x23, [sp], 16
+  ldp x20, x21, [sp], 16
+  ldr x30, [sp], 16
   ret
 
 printBody:
@@ -556,6 +560,57 @@ getCollidingWithBody:
   ldr x30, [sp], 16
   ret                  //return and stuff :)
 
+growBody:
+  //x0 *should* have the ptr
+  //x1 should have the current size
+
+  str x30, [sp, -16]!
+  stp x20, x21, [sp, -16]!
+
+  mov x20, x0 //store the og ptr
+
+  add x0, x1, 1       //increase it by one for growth
+  mov x1, structSize  //prep for mul
+  mul x0, x0, x1
+  sub x21, x0, x1     //store this for counter
+  str x21, [sp, -16]!  //and on the stack
+  sub x21, x21, x1     //we don't want to write to the very last item of the new one
+
+  bl malloc           //allocate the new memory
+  mov x6, x0          //store the new ptr in x6
+1:
+
+  cmp x21, 0
+  blt 99f
+
+  //now we copy the data
+  add x0, x20, x21    //add the counter (int bytes) with the og ptr
+  add x1, x6, x21     //ad the counter (again in bytes) with the new ptr
+
+  ldr x2, [x0]
+  ldr x3, [x0, yOffset]
+  str x2, [x1]
+  str x3, [x1, yOffset]
+
+  sub x21, x21, yOffset
+  b 1b
+
+  //TODO:
+  //base it off of realloc instead of allocating a whole heap of new memory and then copying it over.
+
+99:
+  //now we write to the very last item of the new one
+  ldr x0, [sp], 16    //pop that offset from early from the stack
+  //x2 and x3 should have the last item from the old ptr
+  add x0, x6, x7
+  str x2, [x0]
+  str x3, [x0, yOffset]
+
+  ldp x20, x21, [sp], 16
+  ldr x30, [sp], 16
+  ret
+
+
 main:
   stp x30, x19, [sp, -16]! //store x30 on the stack so we can return
   stp x20, x21, [sp, -16]! //store the rest on the stack so we can return
@@ -633,6 +688,7 @@ main:
   //we have functoin initBody(int bodysize)
   //recall x25 has the ptr to body
   mov x0, x24
+  mov x1, x22
   bl initBody
   mov x25, x0 //it returns a pointer and we put it in x25
 
@@ -699,6 +755,17 @@ gameLoop:
   mov x2, x24
   bl moveBody
 
+  mov x0, x21
+  mov x1, x23
+  bl getColliding
+  cbz x0, 1f
+
+  mov x0, x25
+  mov x1, x24
+  //bl growBody CORE DUMPS HERE WIP
+  mov x25, x0
+  add x24, x24, 1
+1:
   mov x0, x21
   add x1, x25, structSize
   mov x2, x24
