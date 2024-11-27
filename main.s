@@ -12,7 +12,6 @@ numFmt: .asciz "%d, %d"
 .equ wKeyCode, 119
 .equ sKeyCode, 115
 .equ QKeyCode, 81
-.global main
 
 modulo:
   //assume x0 is a
@@ -77,16 +76,21 @@ setPositionData:
 setPosDataToOtherData:
   //assume in x0 is the pointer to set
   //assume in x1 is the pointer to read
-  str x30, [sp, -16]! //load x30 to the stack
-  mov x3, x0
-  mov x0, x1
-  bl getPosDataVals
-  mov x2, x1
-  mov x1, x0
-  mov x0, x3
-  bl setPositionData     //then we set the pos data
-  ldr x30, [sp], 16      //load x30 from the stack
+  ldr x2, [x1]          //get the data
+  ldr x3, [x1, yOffset]
+  str x3, [x0]          //store the data
+  str x2, [x0, yOffset] //NOTE: the setting is reversed, this is because when i was writing this initally i  was very lazy
+  //and did it poorly, the correct version is below
   ret                    //and return
+
+setPosDataToOtherDataFixed:
+  //x0 has the ptr to set
+  //x1 has the ptr to read
+  ldr x2, [x1]
+  ldr x3, [x1, yOffset]
+  str x2, [x0]
+  str x3, [x0, yOffset]
+  ret
 
 movePosDataByOtherPosData:
   str x30, [sp, -16]! //store x30 on the stack and increment by -16
@@ -330,34 +334,31 @@ initBody:
   stp x20, x21, [sp, -16]!
   stp x22, x23, [sp, -16]!
 
+  mov x20, x0
   mov x21, x1
 
-  mov x1, structSize
-  mul x0, x0, x1
-  mov x23, x0
-  bl malloc
+  mov x0, x1
+  bl getmaxx
   mov x22, x0
-
   mov x0, x21
   bl getmaxy
-  add x20, x0, 1
-  mov x0, x21
-  bl getmaxx
-  mov x21, x0
+  mov x23, x0
 
-  sub x23, x23, structSize
-1:
-  cmp x23, 0
-  blt 99f
+  //x20 has reqSize
+  //x21 has stdscr
+  //x22 has max x
+  //x23 has max y
 
-  add x0, x22, x23
-  str x20, [x0]
-  str x21, [x0, yOffset]
+  mov x0, structSize
+  mul x0, x20, x0
+  bl malloc
+  //this makes an array (crazy)
+  mov x20, x0
 
-  sub x23, x23, structSize
-  b 1b
-99:
-  mov x0, x22
+  //x20 has ptr
+  //x21 has offset
+  //x22 has max x
+  //x23 has max y
   ldp x22, x23, [sp], 16
   ldp x20, x21, [sp], 16
   ldr x30, [sp], 16
@@ -462,6 +463,9 @@ setPosRand:
 
   bl rand
   str x0, [x21]
+  mov x0, xzr
+  bl time
+  bl srand
   bl rand
   str x0, [x21, yOffset]
 
@@ -526,7 +530,7 @@ getCollidingWithBody:
   mov x0, structSize
   mul x22, x22, x0 //here we're turning it into bytes so we do less thinking in the end
 
-  //TODO:
+  //TODO
   //only load the x and y of the single item once
   //touch memory less
 
@@ -561,59 +565,21 @@ getCollidingWithBody:
   ret                  //return and stuff :)
 
 growBody:
-  //x0 *should* have the ptr
-  //x1 should have the current size
-
-  str x30, [sp, -16]!
-  stp x20, x21, [sp, -16]!
-
-  mov x20, x0 //store the og ptr
-
-  add x0, x1, 1       //increase it by one for growth
-  mov x1, structSize  //prep for mul
-  mul x0, x0, x1
-  sub x21, x0, x1     //store this for counter
-  str x21, [sp, -16]!  //and on the stack
-  sub x21, x21, x1     //we don't want to write to the very last item of the new one
-
-  bl malloc           //allocate the new memory
-  mov x6, x0          //store the new ptr in x6
-1:
-
-  cmp x21, 0
-  blt 99f
-
-  //now we copy the data
-  add x0, x20, x21    //add the counter (int bytes) with the og ptr
-  add x1, x6, x21     //ad the counter (again in bytes) with the new ptr
-
-  ldr x2, [x0]
-  ldr x3, [x0, yOffset]
-  str x2, [x1]
-  str x3, [x1, yOffset]
-
-  sub x21, x21, yOffset
-  b 1b
-
-  //TODO:
-  //base it off of realloc instead of allocating a whole heap of new memory and then copying it over.
-
-99:
-  //now we write to the very last item of the new one
-  ldr x0, [sp], 16    //pop that offset from early from the stack
-  //x2 and x3 should have the last item from the old ptr
-  add x0, x6, x7
-  str x2, [x0]
-  str x3, [x0, yOffset]
-
-  ldp x20, x21, [sp], 16
+  //x0 has the current ptr
+  //x1 has the current size
+  str x30, [sp ,-16]!
+  stp x1, x2, [sp, -16]!
+  bl free
+  ldp x0, x1, [sp], 16
+  add x0, x0, structSize
+  bl initBody
   ldr x30, [sp], 16
   ret
 
-
+.global main
 main:
   stp x30, x19, [sp, -16]! //store x30 on the stack so we can return
-  stp x20, x21, [sp, -16]! //store the rest on the stack so we can return
+  stp x20, x21, [sp, -16]! //store the rest on the stack so we can put stuff in em
   stp x22, x23, [sp, -16]!
   stp x24, x25, [sp, -16]!
   stp x26, x27, [sp, -16]!
@@ -693,11 +659,10 @@ main:
   mov x25, x0 //it returns a pointer and we put it in x25
 
   //appal :)
-  mov x0, structSize
-  bl malloc
+  mov x0, 12
+  mov x1, 12
+  bl initPosData
   mov x23, x0
-  mov x1, x19
-  bl setPosRand
 
   //x19 maxVals
   //x20 maxLength, won
@@ -710,7 +675,6 @@ main:
   //x27, reqDir
 gameLoop:
 
-  bl clear
   bl getKeyPress
   cmp x0, QKeyCode //check if they're the same
   beq end          //if so go to end
@@ -749,23 +713,25 @@ gameLoop:
   mov x1, x19 //set the maxX and y as the max x and y
   bl wrapPosition
 
+  //check if touching apple
+  mov x0, x21
+  mov x1, x23
+  bl getColliding
+  cbz x0, 2f
+
+  //now we know its colliding
+  mov x0, x25
+  mov x1, x24
+  mov x2, x22
+  bl growBody
+  mov x25, x0
+2:
   //move body
   mov x0, x21
   mov x1, x25
   mov x2, x24
   bl moveBody
 
-  mov x0, x21
-  mov x1, x23
-  bl getColliding
-  cbz x0, 1f
-
-  mov x0, x25
-  mov x1, x24
-  //bl growBody CORE DUMPS HERE WIP
-  mov x25, x0
-  add x24, x24, 1
-1:
   mov x0, x21
   add x1, x25, structSize
   mov x2, x24
@@ -781,17 +747,20 @@ gameLoop:
   //x26, direction
   //x27, reqDir
 
-  //print body
-  mov x0, x25
-  mov x1, x24
-  mov x2, x22
-  bl printBody
+  //clear before printing/drawing
+  bl clear
 
   //print appal
   mov x0, x23
   mov x1, applChar
   mov x2, x22
   bl drawPositionData
+
+  //print body
+  mov x0, x25
+  mov x1, x24
+  mov x2, x22
+  bl printBody
 
   //print head
   mov x0, x21     //set the pos data to draw to be the box
@@ -806,30 +775,43 @@ gameLoop:
   b gameLoop      //go back to gameLoop
 
 end:
+
   mov x0, x22
   bl endwin //end the window
 
-  mov x0, x19 //free maxVals
+  mov x0, x19
   bl free
 
-  mov x0, x20 //free maxLength and ifwon
+  mov x0, x20
   bl free
 
-  mov x0, x21 //free the head pos
+  mov x0, x21
   bl free
 
-  mov x0, x23 //free the appale
+  //TODO fix the error that causes a core dump here
+  //mov x0, x23
+  //bl free
+
+  mov x0, x25
   bl free
 
-  mov x0, x25 //free the body array
+  mov x0, x26
   bl free
 
-  mov x0, x26 //free direction
+  mov x0, x27
   bl free
 
-  mov x0, x27 //free reqDir
-  bl free
 
+  //this is nice.
+  //x19 maxVals
+  //x20 maxLength, won
+  //x21, box
+  //x22 stdscr
+  //x23, apple
+  //x24, bodyLength
+  //x25, bodyArray
+  //x26, direction
+  //x27, reqDir
   ldr x28, [sp], 16
   ldp x26, x27, [sp], 16
   ldp x24, x25, [sp], 16
