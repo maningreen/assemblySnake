@@ -329,38 +329,39 @@ wrapPosition:
 
 initBody:
   //x0 has the requested size, we supply the ptr
-  //x1, should have stdscr ptr
+  //x1, should have maxx, maxy ptr
   str x30, [sp, -16]!
-  stp x20, x21, [sp, -16]!
-  stp x22, x23, [sp, -16]!
 
-  mov x20, x0
-  mov x21, x1
+  str x1, [sp, -16]!    //store maxxy on the stack
 
-  mov x0, x1
-  bl getmaxx
-  mov x22, x0
-  mov x0, x21
-  bl getmaxy
-  mov x23, x0
-
-  //x20 has reqSize
-  //x21 has stdscr
-  //x22 has max x
-  //x23 has max y
-
-  mov x0, structSize
-  mul x0, x20, x0
+  mov x1, structSize
+  mul x0, x0, x1
+  mov x1, x0
+  str x1, [sp, -16]!      //store size on the stack
   bl malloc
-  //this makes an array (crazy)
-  mov x20, x0
 
-  //x20 has ptr
-  //x21 has offset
-  //x22 has max x
-  //x23 has max y
-  ldp x22, x23, [sp], 16
-  ldp x20, x21, [sp], 16
+  ldr x1, [sp], 16        //now x1 has the size* (not quite what we want)
+  sub x1, x1, structSize  //now it has what we want
+
+  //x0 has the ptr x1 has the size
+  mov x2, x0
+  ldr x3, [sp], 16        //load the stdscr from the stack
+  str x2, [sp, -16]!      //store this so we can write to it w/o worry
+
+  add x0, x0, x1          //what we're going to do here is w a c k
+  mov x3, 0
+1:
+  cmp x1, 0
+  blt 1f
+
+  str x3, [x0]
+  str x3, [x0, yOffset]
+
+  sub x0, x0, x2    //(its wack)
+  sub x1, x1, x2
+  b 1b
+1:
+  ldr x0, [sp], 16        //load ptr from the stack
   ldr x30, [sp], 16
   ret
 
@@ -401,49 +402,25 @@ moveBody:
   //x0 should have the head struct
   //x1 should have the ptr to the array
   //x2 should have the array size
-  str x30, [sp, -16]! //push x30 onto stack and adjust it accordingly
-  stp x20, x21, [sp, -16]!
-  str x22, [sp, -16]!
-
-  mov x20, x0 //put our starting struct into x20
-  mov x21, x1 //put our array ptr in x21
-  mov x22, x2 //put our array size in x22
-  //basically we set every item to be the position of the last item
-  //i wanna see if we can just do a funk ton of ptr math instead of just copying the values
-  //i don't think we can do that though
-  //we could probably make the body system much more effective though
-
-  //x20 starting struct
-  //x21 array ptr
-  //x22 array size (already in array format (0 being 1 segment 1 being 2 (there will be 1 at the head)))
+  mov x3, structSize
+  sub x2, x2, 1
+  mul x2, x2, x3
 1:
-  cmp x22, 0    //check if we outa bounds
-  ble 99f       //if we are then we head to 99
-
-  mov x0, structSize
-  sub x1, x22, 1
-  mul x0, x0, x1
-  add x0, x0, x21
-  ldr x1, [x0, yOffset]
-  ldr x2, [x0]
-  add x0, x0, structSize
-
-  str x1, [x0, yOffset]
-  str x2, [x0]
-
-  sub x22, x22, 1
+  cmp x2, 0
+  blt 1f
+  add x3, x1, x2
+  sub x2, x2, structSize
+  add x4, x1, x2
+  ldr x5, [x4]
+  ldr x6, [x4, yOffset]
+  str x5, [x3]
+  str x6, [x3, yOffset]
   b 1b
-99:
-  //set the first item to be the head
-  ldr x0, [x20]         //load the x into x0
-  ldr x1, [x20, yOffset]//load the y into x1
-
-  str x0, [x21]         //store x0 as the x value
-  str x1, [x21, yOffset]//store x1 as the y value
-
-  ldr x22, [sp], 16
-  ldp x20, x21, [sp], 16
-  ldr x30, [sp], 16   //pop x30 from the stack and adjust it accordingly
+1:
+  ldr x3, [x0]
+  ldr x4, [x0, yOffset]
+  str x3, [x1]
+  str x4, [x1, yOffset]
   ret
 
 setPosRand:
@@ -463,9 +440,6 @@ setPosRand:
 
   bl rand
   str x0, [x21]
-  mov x0, xzr
-  bl time
-  bl srand
   bl rand
   str x0, [x21, yOffset]
 
@@ -567,14 +541,14 @@ getCollidingWithBody:
 growBody:
   //x0 has the current ptr
   //x1 has the current size
-  str x30, [sp ,-16]!
-  stp x1, x2, [sp, -16]!
-  bl free
-  ldp x0, x1, [sp], 16
-  add x0, x0, structSize
-  bl initBody
-  ldr x30, [sp], 16
-  ret
+  //x2 has the maxX, maxY ptr
+  str x30, [sp, -16]!     //store linker to return
+  mov x3, structSize
+  add x1, x1, 1
+  mul x1, x1, x3
+  bl realloc
+  ldr x30, [sp], 16       //load this to pop linker
+  ret                     //return with new ptr in hand (hopefully)
 
 .global main
 main:
@@ -647,7 +621,7 @@ main:
   //now we have the two registers for body
   //first: length
   //second: array
-  mov x24, 11    //(its from 0 - 1)
+  mov x24, 5    //(its from 0 - 1)
   //thrilling.
   //next is for the array
 
@@ -659,10 +633,12 @@ main:
   mov x25, x0 //it returns a pointer and we put it in x25
 
   //appal :)
-  mov x0, 12
-  mov x1, 12
+  mov x0, 0
+  mov x1, 0
   bl initPosData
   mov x23, x0
+  mov x1, x19
+  bl setPosRand
 
   //x19 maxVals
   //x20 maxLength, won
@@ -702,7 +678,6 @@ gameLoop:
   bl setPosDataToOtherData//and we sest dir to reqDir
   //that wasn't so hard was it? (it was)
 1:
-
   //change position of box based on direction
   mov x0, x21 //load args
   mov x1, x26
@@ -722,8 +697,11 @@ gameLoop:
   //now we know its colliding
   mov x0, x25
   mov x1, x24
-  mov x2, x22
-  bl growBody
+  str x24, [sp, -16]!
+  mov x2, x19
+  //bl growBody
+  ldr x24, [sp], 16
+  add x24, x24, 1
   mov x25, x0
 2:
   //move body
@@ -735,8 +713,10 @@ gameLoop:
   mov x0, x21
   add x1, x25, structSize
   mov x2, x24
-  bl getCollidingWithBody
+  //bl getCollidingWithBody
+  mov x0, 0
   cbnz x0, end
+
   //x19 maxVals
   //x20 maxLength, won
   //x21, box
@@ -770,7 +750,7 @@ gameLoop:
 
   bl refresh     //refresh the screen
 
-  bl delayTick    //delay the game by ~.1 seconds
+  bl delayTick    //delay the game by ~.1 seconds (its wrong)
 
   b gameLoop      //go back to gameLoop
 
