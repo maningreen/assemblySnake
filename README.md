@@ -2,15 +2,14 @@
 snake in armv8 assembly
 
 # current status
-wip, not complete --(expect a week or two to be finished)--
-expect around 3 weeks.
+wip.
+
+expect progress to halt for the time being, my --laptop-- chromebook (it doesn't deserve to be called a laptop) broke
+and so i've had to transition devices fairly quickly and am not looking forward to figuring out docker or the alternatives
+so i'm just gonna take a brake from assembly and come back to it after a while.
 
 # current progress
 you can move, it has snake movement, but if you eat two apples the game crashes. and the core gets dumped. Still working on that growth
-
-(IT DOESNT DUMP ON THE RELEASED VERSION, only on the development one :), only i deserve to suffer)
-
-working on that.
 
 and if you run into yourself the game ends.
 
@@ -20,8 +19,7 @@ you need a few things:
   2. gcc-aarch64-linux-gnu, and ncurses, using your package manager
   arch based distros: 
   ```
-  yay -S gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
-  sudo pacman -S ncurses
+  sudo pacman -S ncurses aarch64-linux-gnu-gcc
   ```
   or with your preferred aur helper
 
